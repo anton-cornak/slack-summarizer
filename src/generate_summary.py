@@ -3,24 +3,45 @@ from google import genai
 from google.genai import types
 
 
-def generate(message, images=None):
-    # Extract URLs from the message
-
+def generate(messages, images=None):
+    """Generate summary for one or more messages"""
     client = genai.Client(
         vertexai=True,
         project="snbx-vml-vcdm",
         location="us-central1",
     )
 
-    # Create the text content
-    text = f"""input: example input
-output: example output
+    # Format messages for the prompt, including files and links
+    def format_message(msg):
+        base_text = f"Message: {msg['text']}"
 
-input: example input 2
-output: example output 2
+        # Add files information if present
+        if "files" in msg:
+            for file in msg["files"]:
+                file_type = file.get("filetype", "").lower()
+                title = file.get("title", "Untitled")
+                if file_type in ["pdf", "png", "jpg", "jpeg"]:
+                    base_text += f"\n[File: {file_type.upper()} - {title}]"
 
+        return base_text
 
-input: {message}
+    formatted_messages = (
+        "\n".join([format_message(msg) for msg in messages])
+        if isinstance(messages, list)
+        else format_message(messages)
+    )
+
+    # Create the text content with examples including files
+    text = f"""input: Message: Critical security update needed for all GCP instances by EOD
+[File: PDF - Security_Update.pdf]
+Message: Team meeting tomorrow at 10 AM
+[File: PNG - Meeting_Schedule.png]
+output: [
+  {{"summary": "Urgent security patches required for GCP instances, includes detailed PDF", "assessment": "Action required"}},
+  {{"summary": "Team meeting scheduled for tomorrow at 10 AM, schedule image attached", "assessment": "Acknowledge"}}
+]
+
+input: {formatted_messages}
 output: """
 
     # Create content parts
@@ -36,38 +57,47 @@ output: """
         )
 
     # Create the content parts directly
-    contents = [
-        types.Content(
-            role="user",
-            parts=parts,
-        )
-    ]
+    contents = [types.Content(role="user", parts=parts)]
 
-    textsi_1 = """You are an intelligent assistant designed to manage and summarize Slack messages within our organization's corporate global channels, including Security, AI, and others. Your tasks are as follows:
+    textsi_1 = """You are an intelligent assistant designed to manage and summarize Slack messages. Your task is to analyze each message and provide a summary and assessment.
 
 1. **Summarization:**
-  - Provide a concise summary of the message content.
-  - Include key points and actions required.
-  - Summarize in 1 sentence.
-  - If the message includes a reachable link, visit the link and summarize the content.
-  - If the message includes a file, visit the file and summarize the content.
+  - Provide a concise summary of each message's content
+  - Include key points and actions required
+  - Summarize each message in 1 sentence
+  - If a message includes a link or file, note that in the summary
 
-2. **Assessment:**
-  - **Action required:** 
-   - If the message concerns our team, Visma Machine Learning (VML).
-   - If it relates to our tech stack (Python, Golang, GCP, Kubernetes).
-   - If there is a corporate-wide policy change.
-   - If it directly concerns VML team.
-   - If it directly concerns the VML team products - Smartscan and Autosuggest.
-  - **Acknowledge:** If the message is informative and only needs a brief acknowledgment.
-  - **Ignore:** For all other messages that do not require any action or acknowledgment.
+2. **Assessment for each message:**
+  - **Action required:**
+   - If the message concerns our team, Visma Machine Learning (VML)
+   - If it relates to our tech stack (Python, Golang, GCP, Kubernetes)
+   - If there is a corporate-wide policy change
+   - If it directly concerns VML team
+   - If it directly concerns the VML team products - Smartscan and Autosuggest
+  - **Acknowledge:** If the message is informative and only needs a brief acknowledgment
+  - **Ignore:** For all other messages that do not require any action or acknowledgment
 
-IMPORTANT: Respond with a raw JSON object only, no markdown formatting. The response must be valid JSON that can be parsed by Python's json.loads().
+IMPORTANT: Respond with a JSON array containing an object for each message. Each object should have 'summary' and 'assessment' fields. The response must be valid JSON that can be parsed by Python's json.loads().
 
-{
- "summary": "Your concise summary here.",
- "assessment": "Action required/Acknowledge/Ignore"
-}"""
+Example response format for multiple messages:
+[
+  {
+    "summary": "First message summary",
+    "assessment": "Action required"
+  },
+  {
+    "summary": "Second message summary",
+    "assessment": "Acknowledge"
+  }
+]
+
+For a single message, still use an array with one object:
+[
+  {
+    "summary": "Message summary",
+    "assessment": "Ignore"
+  }
+]"""
 
     model = "gemini-2.0-flash-exp"
 

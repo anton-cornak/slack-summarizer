@@ -4,12 +4,15 @@ version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
+packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
 google-genai = "^0.8.0"
 slack-bolt = "^1.22.0"
 python-dotenv = "^1.0.1"
+schedule = "^1.2.2"
+requests = "^2.31.0"
 
 
 [build-system]
